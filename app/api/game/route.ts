@@ -587,3 +587,25 @@ async function executeAITurn(gameId: string, gameState: any) {
     }
   }
 }
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const roomCode = searchParams.get("roomCode");
+  const playerId = searchParams.get("playerId");
+
+  if (!roomCode || !playerId) {
+    return NextResponse.json({ error: "Missing roomCode or playerId" }, { status: 400 });
+  }
+
+  const [game] = await db
+    .select()
+    .from(games)
+    .where(eq(games.roomCode, roomCode));
+
+  if (!game) {
+    return NextResponse.json({ error: "Game not found" }, { status: 404 });
+  }
+
+  const gameState = await getGameState(game.id, playerId);
+  return NextResponse.json({ gameState });
+}
