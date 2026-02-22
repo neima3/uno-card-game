@@ -59,6 +59,43 @@ export async function POST(request: NextRequest) {
               aiDifficulty,
             });
           }
+
+          // Auto-start the game for vs computer mode
+          const allPlayers = await db
+            .select()
+            .from(players)
+            .where(eq(players.gameId, gameId));
+
+          const playerData = allPlayers.map((p) => ({
+            id: p.id,
+            displayName: p.displayName,
+            isAi: p.isAi || false,
+            aiDifficulty: p.aiDifficulty as "easy" | "medium" | "hard" | undefined,
+          }));
+
+          const gameState = initializeGame(code, playerData);
+
+          // Update players with their dealt hands
+          for (const p of gameState.players) {
+            await db
+              .update(players)
+              .set({ hand: p.hand })
+              .where(eq(players.id, p.id));
+          }
+
+          // Update game with initialized state
+          await db
+            .update(games)
+            .set({
+              status: "playing",
+              drawPile: gameState.drawPile,
+              discardPile: gameState.discardPile,
+              currentColor: gameState.currentColor,
+              currentPlayerIndex: 0,
+              direction: 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(games.id, gameId));
         }
 
         return NextResponse.json({ roomCode: code, playerId: newPlayerId, gameId });
