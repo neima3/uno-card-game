@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 
 import { Card, CardColor, GameState, Player, getPlayableCards } from "@/lib/game-engine";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { ArrowLeft, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, LogOut } from "lucide-react";
 
 export default function GamePage() {
   const params = useParams();
@@ -30,6 +30,7 @@ export default function GamePage() {
   const [pendingWildCard, setPendingWildCard] = useState<Card | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hasSaidUno, setHasSaidUno] = useState(false);
+  const [pollFailures, setPollFailures] = useState(0);
 
   const { playSound } = useSoundEffects();
 
@@ -40,48 +41,48 @@ export default function GamePage() {
     if (!playerId) return;
 
     try {
-      const response = await fetch("/api/game", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: "get_state",
-          roomCode,
-          playerId,
-        }),
-      });
+      const response = await fetch(`/api/game?roomCode=${roomCode}&playerId=${playerId}`);
 
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error || "Failed to fetch game");
-        router.push("/");
+        setPollFailures((prev) => prev + 1);
+        if (pollFailures >= 2) {
+          toast.error("Connection lost. Redirecting...");
+          setTimeout(() => router.push("/"), 2000);
+        }
         return;
       }
 
-      if (data.game.status === "waiting") {
+      setPollFailures(0);
+
+      if (data.gameState.status === "waiting") {
         router.push(`/lobby/${roomCode}`);
         return;
       }
 
-      setGameState(data.game);
-      setMyHand(data.myHand || []);
+      setGameState(data.gameState);
+      setMyHand(data.gameState.myHand || []);
 
-      if (data.game.status === "playing") {
-        const currentPlayer = data.game.players[data.game.currentPlayerIndex];
-        if (currentPlayer?.id === playerId && currentPlayer?.isAi) {
-          setTimeout(fetchGameState, 1500);
-        }
+      if (data.gameState.status === "finished") {
+        return;
+      }
+
+      const currentPlayer = data.gameState.players[data.gameState.currentPlayerIndex];
+      if (currentPlayer?.id === playerId && currentPlayer?.isAi) {
+        setTimeout(fetchGameState, 1500);
       }
     } catch (error) {
+      setPollFailures((prev) => prev + 1);
       toast.error("Failed to fetch game state");
     } finally {
       setLoading(false);
     }
-  }, [roomCode, router, playerId]);
+  }, [roomCode, router, playerId, pollFailures]);
 
   useEffect(() => {
     fetchGameState();
-    const interval = setInterval(fetchGameState, 3000);
+    const interval = setInterval(fetchGameState, 2000);
     return () => clearInterval(interval);
   }, [fetchGameState]);
 
@@ -253,11 +254,11 @@ export default function GamePage() {
 
   if (loading || !gameState) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="min-h-screen flex items-center justify-center bg-[var(--bg-deep)]">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full"
+          className="w-12 h-12 border-4 border-white/20 border-t-[var(--uno-red)] rounded-full"
         />
       </main>
     );
@@ -270,32 +271,44 @@ export default function GamePage() {
     ? gameState.players.find((p) => p.id === gameState.winnerId)
     : null;
 
-  const myPlayerData = gameState.players.find((p) => p.id === playerId);
   const opponents = gameState.players.filter((p) => p.id !== playerId);
 
   const shouldShowUnoButton = myHand.length <= 2 && !hasSaidUno;
   const canDraw = isMyTurn && getPlayableCards(myHand, topCard, gameState.currentColor).length === 0;
 
+  const currentColorStyle = gameState.currentColor && gameState.currentColor !== "wild"
+    ? {
+        red: { bg: "#FF2B2B", glow: "var(--neon-glow-red)" },
+        blue: { bg: "#1A8CFF", glow: "var(--neon-glow-blue)" },
+        green: { bg: "#00CC66", glow: "var(--neon-glow-green)" },
+        yellow: { bg: "#FFD700", glow: "var(--neon-glow-yellow)" },
+      }[gameState.currentColor as "red" | "blue" | "green" | "yellow"]
+    : null;
+
   return (
-    <main className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <header className="flex items-center justify-between p-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
+    <main className="min-h-screen flex flex-col relative overflow-hidden">
+      <div className="absolute inset-0 table-felt pointer-events-none" />
+
+      <header className="relative z-20 flex items-center justify-between p-3 sm:p-4">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => router.push("/")}
+          className="text-white/70 hover:text-white hover:bg-white/10"
+        >
           <ArrowLeft className="w-5 h-5" />
         </Button>
 
         <TurnIndicator
           currentplayerName={currentPlayer?.displayName || "Unknown"}
-          message={
-            isMyTurn
-              ? "Your turn!"
-              : undefined
-          }
+          message={isMyTurn ? "Your turn!" : undefined}
         />
 
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setSoundEnabled(!soundEnabled)}
+          className="text-white/70 hover:text-white hover:bg-white/10"
         >
           {soundEnabled ? (
             <Volume2 className="w-5 h-5" />
@@ -305,8 +318,8 @@ export default function GamePage() {
         </Button>
       </header>
 
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex items-start justify-center gap-4 p-4 flex-wrap">
+      <div className="flex-1 flex flex-col relative z-10">
+        <div className="flex-1 flex items-start justify-center gap-2 sm:gap-4 p-2 sm:p-4 flex-wrap">
           {opponents.map((opponent) => (
             <OpponentHand
               key={opponent.id}
@@ -318,33 +331,81 @@ export default function GamePage() {
           ))}
         </div>
 
-        <div className="flex-1 flex items-center justify-center gap-8 sm:gap-16 px-4">
-          <DrawPile
-            count={gameState.drawPile.length}
-            onDraw={handleDrawCard}
-            canDraw={canDraw}
-          />
+        <div className="flex-1 flex items-center justify-center gap-4 sm:gap-12 lg:gap-20 px-4 relative">
+          <div className="flex flex-col items-center gap-3">
+            <DrawPile
+              count={gameState.drawPile.length}
+              onDraw={handleDrawCard}
+              canDraw={canDraw}
+            />
+          </div>
 
-          <DiscardPile
-            cards={gameState.discardPile}
-            currentColor={gameState.currentColor}
-          />
+          <div className="flex flex-col items-center gap-3">
+            <DiscardPile
+              cards={gameState.discardPile}
+              currentColor={gameState.currentColor}
+            />
+            
+            {currentColorStyle && topCard?.color === "wild" && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="mt-2 flex items-center gap-2"
+              >
+                <span className="text-white/50 text-xs sm:text-sm">Current:</span>
+                <motion.div
+                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white/50"
+                  style={{ 
+                    backgroundColor: currentColorStyle.bg,
+                    boxShadow: currentColorStyle.glow,
+                  }}
+                  animate={{
+                    scale: [1, 1.1, 1],
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              </motion.div>
+            )}
+          </div>
+
+          {gameState.currentColor && topCard?.color !== "wild" && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="absolute -bottom-4 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm"
+            >
+              <span className="text-white/50 text-xs">Active:</span>
+              <motion.div
+                className="w-5 h-5 rounded-full border-2 border-white/50"
+                style={{ 
+                  backgroundColor: currentColorStyle?.bg,
+                  boxShadow: currentColorStyle?.glow,
+                }}
+              />
+            </motion.div>
+          )}
         </div>
 
         <div className="flex-1" />
       </div>
 
-      <div className="p-4 pb-8">
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <span
-            className={`px-3 py-1 rounded-full text-sm font-medium ${
+      <div className="relative z-10 p-3 sm:p-4 pb-4 sm:pb-6">
+        <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3">
+          <motion.span
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
               isMyTurn
-                ? "bg-yellow-500 text-gray-900"
+                ? "bg-[var(--uno-yellow)] text-gray-900 shadow-lg"
                 : "bg-white/10 text-white/70"
             }`}
           >
             {playerName} ({myHand.length} cards)
-          </span>
+          </motion.span>
 
           {shouldShowUnoButton && (
             <UnoButton

@@ -5,14 +5,21 @@ import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
   variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
-  title: "UNO Card Game",
-  description: "Play UNO online with friends or against AI opponents",
+  title: "UNO — Play Online",
+  description: "Play UNO online with friends or against AI. No account needed.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/uno-icon.png",
+    apple: "/uno-icon.png",
+  },
+  openGraph: {
+    title: "UNO — Play Online",
+    description: "Play UNO online with friends or against AI. No account needed.",
+    images: ["/logo.png"],
   },
 };
 
@@ -29,9 +36,10 @@ export default function RootLayout({
           position="top-center"
           toastOptions={{
             style: {
-              background: "#1a1a2e",
+              background: "var(--bg-surface)",
               color: "#fff",
               border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
             },
           }}
         />

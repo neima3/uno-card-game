@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 interface OpponentHandProps {
   cardCount: number;
@@ -16,27 +15,38 @@ export function OpponentHand({
   isCurrentTurn,
   hasSaidUno = false,
 }: OpponentHandProps) {
-  const maxVisible = 7;
+  const maxVisible = 5;
   const visibleCards = Math.min(cardCount, maxVisible);
-  const overlap = 12;
+  const overlap = 10;
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center gap-2"
+    >
       <div
-        className={cn(
-          "px-3 py-1 rounded-full text-sm font-medium transition-all",
+        className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
           isCurrentTurn
-            ? "bg-yellow-500 text-gray-900 animate-pulse"
+            ? "bg-[var(--uno-yellow)] text-gray-900 shadow-lg"
             : "bg-white/10 text-white/70"
-        )}
+        }`}
       >
-        {displayName}
-        {cardCount === 1 && !hasSaidUno && (
-          <span className="ml-1 text-red-400 font-bold">!</span>
-        )}
+        <span className="flex items-center gap-2">
+          {displayName}
+          {cardCount === 1 && !hasSaidUno && (
+            <motion.span
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ duration: 0.5, repeat: Infinity }}
+              className="text-[var(--uno-red)] font-bold"
+            >
+              !
+            </motion.span>
+          )}
+        </span>
       </div>
       
-      <div className="relative flex items-center h-12">
+      <div className="relative flex items-center h-14">
         {Array.from({ length: visibleCards }).map((_, i) => (
           <motion.div
             key={i}
@@ -46,10 +56,21 @@ export function OpponentHand({
             className="absolute"
             style={{ zIndex: i }}
           >
-            <div className="w-8 h-12 sm:w-10 sm:h-14 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 border border-gray-600 shadow-lg overflow-hidden">
-              <div className="absolute inset-1 rounded bg-gradient-to-br from-red-600 via-yellow-500 to-green-600 opacity-70" />
-              <div className="absolute inset-1.5 rounded bg-gray-900 flex items-center justify-center">
-                <span className="text-white font-black text-[6px] rotate-[-20deg]">UNO</span>
+            <div 
+              className="w-8 h-12 sm:w-10 sm:h-14 rounded-lg overflow-hidden card-shadow"
+              style={{
+                background: "linear-gradient(135deg, #2D2D2D 0%, #1A1A1A 100%)",
+                border: "1px solid #444",
+              }}
+            >
+              <div className="absolute inset-1 rounded bg-gradient-to-br from-red-500/60 via-yellow-500/50 to-green-500/60" />
+              <div className="absolute inset-1.5 rounded bg-[var(--bg-deep)] flex items-center justify-center">
+                <span 
+                  className="text-white font-black text-[7px]"
+                  style={{ transform: "rotate(-15deg)" }}
+                >
+                  UNO
+                </span>
               </div>
             </div>
           </motion.div>
@@ -59,8 +80,11 @@ export function OpponentHand({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="absolute -right-3 top-0 w-5 h-5 rounded-full bg-white text-gray-900 text-xs font-bold flex items-center justify-center shadow-lg"
-            style={{ left: visibleCards * overlap + 4 }}
+            transition={{ type: "spring", stiffness: 300 }}
+            className="absolute w-6 h-6 rounded-full bg-white text-gray-900 text-xs font-bold flex items-center justify-center shadow-lg"
+            style={{ 
+              left: visibleCards * overlap + 8,
+            }}
           >
             {cardCount}
           </motion.div>
@@ -70,13 +94,20 @@ export function OpponentHand({
       {cardCount === 1 && hasSaidUno && (
         <motion.div
           initial={{ scale: 0 }}
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ repeat: Infinity, duration: 0.5 }}
-          className="text-xs font-bold text-red-400"
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ 
+            repeat: Infinity, 
+            duration: 0.6,
+            ease: "easeInOut"
+          }}
+          className="text-xs font-bold text-[var(--uno-red)] tracking-wider"
+          style={{
+            textShadow: "0 0 10px var(--uno-red)",
+          }}
         >
           UNO!
         </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
