@@ -23,7 +23,7 @@ export function DiscardPile({ cards, currentColor }: DiscardPileProps) {
     return (
       <div 
         className="rounded-xl border-2 border-dashed border-white/20 flex items-center justify-center"
-        style={{ width: "60px", height: "85px" }}
+        style={{ width: "64px", height: "96px" }}
       >
         <span className="text-white/20 text-xs">Empty</span>
       </div>
@@ -34,31 +34,33 @@ export function DiscardPile({ cards, currentColor }: DiscardPileProps) {
 
   return (
     <div className="relative">
-      {cards.length > 1 && (
-        <motion.div 
-          initial={{ rotate: 0 }}
-          animate={{ rotate: -6 }}
-          className="absolute rounded-xl"
-          style={{ 
-            width: "60px", 
-            height: "85px",
-            transform: "translateX(4px)",
-            background: "linear-gradient(145deg, #2D2D2D 0%, #1A1A1A 100%)",
-            border: "1px solid #333",
-          }}
-        />
-      )}
       {cards.length > 2 && (
         <motion.div 
           initial={{ rotate: 0 }}
-          animate={{ rotate: 4 }}
+          animate={{ rotate: -8 }}
           className="absolute rounded-xl"
           style={{ 
-            width: "60px", 
-            height: "85px",
-            transform: "translateX(-3px)",
+            width: "64px", 
+            height: "96px",
+            transform: "translateX(6px) translateY(2px)",
             background: "linear-gradient(145deg, #2D2D2D 0%, #1A1A1A 100%)",
             border: "1px solid #333",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          }}
+        />
+      )}
+      {cards.length > 1 && (
+        <motion.div 
+          initial={{ rotate: 0 }}
+          animate={{ rotate: 5 }}
+          className="absolute rounded-xl"
+          style={{ 
+            width: "64px", 
+            height: "96px",
+            transform: "translateX(-4px) translateY(1px)",
+            background: "linear-gradient(145deg, #2D2D2D 0%, #1A1A1A 100%)",
+            border: "1px solid #333",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
           }}
         />
       )}
@@ -77,13 +79,17 @@ export function DiscardPile({ cards, currentColor }: DiscardPileProps) {
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full border-2 border-white/50 shadow-lg flex items-center justify-center"
+            className="absolute -bottom-2 -right-2 w-10 h-10 rounded-full border-3 border-white/60 shadow-xl flex items-center justify-center"
             style={{ 
               backgroundColor: style.bg,
               boxShadow: style.glow,
             }}
           >
-            <div className="w-3 h-3 rounded-full bg-white/40" />
+            <motion.div 
+              className="w-4 h-4 rounded-full bg-white/50"
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
           </motion.div>
         )}
       </motion.div>
@@ -91,8 +97,8 @@ export function DiscardPile({ cards, currentColor }: DiscardPileProps) {
       {style && topCard.color !== "wild" && (
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.25 }}
-          className="absolute -inset-3 rounded-2xl pointer-events-none"
+          animate={{ opacity: 0.3 }}
+          className="absolute -inset-4 rounded-2xl pointer-events-none"
           style={{
             boxShadow: style.glow,
           }}

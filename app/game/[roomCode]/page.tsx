@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
 import { PlayerHand } from "@/components/game/PlayerHand";
-import { OpponentHand } from "@/components/game/OpponentHand";
 import { DiscardPile } from "@/components/game/DiscardPile";
 import { DrawPile } from "@/components/game/DrawPile";
 import { TurnIndicator } from "@/components/game/TurnIndicator";
@@ -18,12 +17,150 @@ import { Button } from "@/components/ui/button";
 
 import { Card, CardColor, GameState, Player, getPlayableCards } from "@/lib/game-engine";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { ArrowLeft, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, RotateCw } from "lucide-react";
+
+interface OpponentSlotProps {
+  opponent: Player;
+  isCurrentTurn: boolean;
+  seatIndex: number;
+}
+
+const seatColors = [
+  { bg: "#E53935", glow: "rgba(229,57,53,0.5)" },
+  { bg: "#1E88E5", glow: "rgba(30,136,229,0.5)" },
+  { bg: "#43A047", glow: "rgba(67,160,71,0.5)" },
+  { bg: "#FDD835", glow: "rgba(253,216,53,0.5)" },
+  { bg: "#8E24AA", glow: "rgba(142,36,170,0.5)" },
+  { bg: "#FF7043", glow: "rgba(255,112,67,0.5)" },
+];
+
+function OpponentSlot({ opponent, isCurrentTurn, seatIndex }: OpponentSlotProps) {
+  const seatColor = seatColors[seatIndex % seatColors.length];
+  const initial = opponent.displayName.charAt(0).toUpperCase();
+  const cardCount = opponent.hand.length;
+  const maxVisible = 4;
+  const visibleCards = Math.min(cardCount, maxVisible);
+  const overlap = 14;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      className={`relative flex flex-col items-center p-3 rounded-2xl transition-all ${
+        isCurrentTurn 
+          ? "bg-white/10 ring-2 ring-offset-2 ring-offset-transparent" 
+          : "bg-white/5"
+      }`}
+      style={isCurrentTurn ? { 
+        boxShadow: `0 0 30px ${seatColor.glow}, inset 0 0 20px ${seatColor.glow}`,
+        borderColor: seatColor.bg,
+      } : {}}
+    >
+      <motion.div
+        animate={isCurrentTurn ? { scale: [1, 1.05, 1] } : {}}
+        transition={{ duration: 1.5, repeat: Infinity }}
+        className="relative mb-2"
+      >
+        <div
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl shadow-lg"
+          style={{
+            background: `linear-gradient(145deg, ${seatColor.bg}, ${seatColor.bg}CC)`,
+            boxShadow: isCurrentTurn 
+              ? `0 0 20px ${seatColor.glow}, 0 4px 12px rgba(0,0,0,0.3)`
+              : "0 4px 12px rgba(0,0,0,0.3)",
+          }}
+        >
+          {initial}
+        </div>
+        {isCurrentTurn && (
+          <motion.div
+            className="absolute inset-0 rounded-full"
+            style={{ border: `3px solid ${seatColor.bg}` }}
+            animate={{ scale: [1, 1.4], opacity: [0.8, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+        )}
+      </motion.div>
+
+      <span className={`text-xs sm:text-sm font-semibold truncate max-w-[100px] mb-1 ${
+        isCurrentTurn ? "text-white" : "text-white/70"
+      }`}>
+        {opponent.displayName}
+      </span>
+
+      <div className="flex items-center gap-1.5">
+        <div className="flex items-center">
+          {Array.from({ length: visibleCards }).map((_, i) => (
+            <div
+              key={i}
+              className="relative"
+              style={{ 
+                marginLeft: i === 0 ? 0 : -overlap,
+                zIndex: i,
+              }}
+            >
+              <div 
+                className="w-7 h-9 sm:w-8 sm:h-11 rounded-md overflow-hidden"
+                style={{
+                  background: "linear-gradient(145deg, #2D2D2D 0%, #1A1A1A 100%)",
+                  border: "1px solid #444",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                }}
+              >
+                <div className="absolute inset-0.5 rounded overflow-hidden">
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      background: "conic-gradient(from 0deg, #E5393530 0deg 90deg, #1E88E530 90deg 180deg, #43A04730 180deg 270deg, #FDD83530 270deg 360deg)",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="min-w-[24px] h-6 px-2 rounded-full bg-white text-gray-900 text-xs font-bold flex items-center justify-center shadow-md"
+        >
+          {cardCount}
+        </motion.div>
+      </div>
+
+      {cardCount === 1 && opponent.hasSaidUno && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ repeat: Infinity, duration: 0.6 }}
+          className="absolute -bottom-2 px-3 py-1 rounded-full bg-gradient-to-r from-[#E53935] to-[#C62828] text-white text-[10px] font-bold tracking-wider shadow-lg"
+          style={{ boxShadow: "0 0 20px rgba(229,57,53,0.6)" }}
+        >
+          UNO!
+        </motion.div>
+      )}
+
+      {cardCount === 1 && !opponent.hasSaidUno && (
+        <motion.div
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ duration: 0.5, repeat: Infinity }}
+          className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[#FF5722] text-white text-sm font-bold flex items-center justify-center shadow-lg"
+        >
+          !
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
 
 export default function GamePage() {
   const params = useParams();
   const router = useRouter();
   const roomCode = params.roomCode as string;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [myHand, setMyHand] = useState<Card[]>([]);
@@ -34,6 +171,8 @@ export default function GamePage() {
   const [pollFailures, setPollFailures] = useState(0);
   const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [showTurnToast, setShowTurnToast] = useState(false);
+  const prevTurnRef = useRef<string | null>(null);
 
   const { playSound } = useSoundEffects();
 
@@ -67,6 +206,31 @@ export default function GamePage() {
         return;
       }
 
+      const prevCurrentPlayer = gameState?.players[gameState.currentPlayerIndex]?.id;
+      const newCurrentPlayer = data.gameState.players[data.gameState.currentPlayerIndex]?.id;
+
+      if (prevCurrentPlayer !== newCurrentPlayer && newCurrentPlayer === playerId && gameState?.status === "playing") {
+        setShowTurnToast(true);
+        if (soundEnabled) playSound("play");
+        setTimeout(() => setShowTurnToast(false), 2000);
+      }
+
+      if (gameState && data.gameState) {
+        const prevPlayers = gameState.players;
+        const newPlayers = data.gameState.players;
+        
+        const currentPlayerId = playerId;
+        const prevMe = prevPlayers.find((p: Player) => p.id === currentPlayerId);
+        const newMe = newPlayers.find((p: Player) => p.id === currentPlayerId);
+        
+        if (prevMe && newMe && newMe.hand.length > prevMe.hand.length) {
+          const drawnCount = newMe.hand.length - prevMe.hand.length;
+          if (drawnCount > 0) {
+            toast(`You drew ${drawnCount} card${drawnCount > 1 ? 's' : ''}!`, { icon: "🃏" });
+          }
+        }
+      }
+
       setGameState(data.gameState);
       setMyHand(data.gameState.myHand || []);
       setIsAiThinking(false);
@@ -76,7 +240,7 @@ export default function GamePage() {
     } finally {
       setLoading(false);
     }
-  }, [roomCode, router, playerId, pollFailures]);
+  }, [roomCode, router, playerId, pollFailures, gameState, soundEnabled, playSound]);
 
   useEffect(() => {
     fetchGameState();
@@ -321,12 +485,12 @@ export default function GamePage() {
 
   return (
     <main className="min-h-screen min-h-[100dvh] flex flex-col relative overflow-hidden game-bg">
-      <header className="relative z-20 flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+      <header className="relative z-20 flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 bg-black/20 backdrop-blur-sm">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.push("/")}
-          className="text-white/60 hover:text-white hover:bg-white/10 w-9 h-9"
+          className="text-white/60 hover:text-white hover:bg-white/10 w-10 h-10 rounded-full"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -344,7 +508,7 @@ export default function GamePage() {
             variant="ghost"
             size="icon"
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="text-white/60 hover:text-white hover:bg-white/10 w-9 h-9"
+            className="text-white/60 hover:text-white hover:bg-white/10 w-10 h-10 rounded-full"
           >
             {soundEnabled ? (
               <Volume2 className="w-5 h-5" />
@@ -355,81 +519,96 @@ export default function GamePage() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col relative z-10 px-2">
-        <div className="flex items-start justify-center gap-2 sm:gap-4 py-2 overflow-x-auto">
+      <div className="flex-1 flex flex-col relative z-10 px-2 overflow-hidden">
+        <div className="flex items-start justify-center gap-2 sm:gap-3 py-2 px-1 overflow-x-auto scrollbar-hide">
           {opponents.map((opponent, index) => (
-            <OpponentHand
+            <OpponentSlot
               key={opponent.id}
-              cardCount={opponent.hand.length}
-              displayName={opponent.displayName}
+              opponent={opponent}
               isCurrentTurn={gameState.players[gameState.currentPlayerIndex]?.id === opponent.id}
-              hasSaidUno={opponent.hasSaidUno}
               seatIndex={index}
             />
           ))}
         </div>
 
-        <div className="flex-1 flex items-center justify-center gap-6 sm:gap-10 lg:gap-16 px-4 py-4">
-          <div className="flex flex-col items-center gap-2">
-            <DrawPile
-              count={gameState.drawPile.length}
-              onDraw={handleDrawCard}
-              canDraw={canDraw}
-            />
-          </div>
-
-          {currentColorStyle && (
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="flex flex-col items-center gap-1"
-            >
-              <motion.div
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/30"
-                style={{ 
-                  backgroundColor: currentColorStyle.bg,
-                  boxShadow: currentColorStyle.glow,
-                }}
-                animate={{
-                  scale: [1, 1.08, 1],
-                }}
-                transition={{
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 sm:gap-6 px-4 py-4">
+          <div className="flex items-center justify-center gap-8 sm:gap-16 lg:gap-24">
+            <div className="flex flex-col items-center gap-2">
+              <DrawPile
+                count={gameState.drawPile.length}
+                onDraw={handleDrawCard}
+                canDraw={canDraw}
               />
-            </motion.div>
-          )}
+            </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <DiscardPile
-              cards={gameState.discardPile}
-              currentColor={gameState.currentColor}
-            />
+            <div className="flex flex-col items-center gap-3">
+              {currentColorStyle && (
+                <motion.div
+                  initial={mounted ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="relative"
+                >
+                  <motion.div
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-3 border-white/40"
+                    style={{ 
+                      backgroundColor: currentColorStyle.bg,
+                      boxShadow: currentColorStyle.glow,
+                    }}
+                    animate={{
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{
+                      duration: 1.5,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                  <motion.div
+                    className="absolute inset-0 rounded-full"
+                    style={{ border: `2px solid ${currentColorStyle.bg}` }}
+                    animate={{ scale: [1, 1.5], opacity: [0.6, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                </motion.div>
+              )}
+              
+              <div className="flex items-center gap-1.5 text-white/40">
+                <RotateCw className={`w-4 h-4 ${gameState.direction === 1 ? '' : 'scale-x-[-1]'}`} />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <DiscardPile
+                cards={gameState.discardPile}
+                currentColor={gameState.currentColor}
+              />
+            </div>
+          </div>
+
+          <div className="w-full max-w-md">
+            <ActionLog entries={actionLog} maxVisible={2} />
           </div>
         </div>
-
-        <div className="flex justify-center pb-2">
-          <ActionLog entries={actionLog} maxVisible={2} />
-        </div>
-
-        <div className="flex-1" />
       </div>
 
-      <div className="relative z-10 p-3 sm:p-4 pb-safe">
+      <div className="relative z-10 p-3 sm:p-4 pb-safe bg-gradient-to-t from-black/40 to-transparent">
         <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3">
-          <motion.span
-            initial={{ opacity: 0, y: 10 }}
+          <motion.div
+            initial={mounted ? { opacity: 0, y: 10 } : { opacity: 1, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
+            className={`flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full ${
               isMyTurn
-                ? "bg-[#FDD835] text-gray-900 shadow-lg"
+                ? "bg-gradient-to-r from-[#FDD835] to-[#FFA000] text-gray-900 shadow-lg shadow-yellow-500/30"
                 : "bg-white/10 text-white/70"
             }`}
           >
-            {playerName} ({myHand.length})
-          </motion.span>
+            <span className="font-bold text-sm sm:text-base">
+              {playerName}
+            </span>
+            <span className={`text-sm sm:text-base font-bold ${isMyTurn ? 'text-gray-700' : 'text-white/50'}`}>
+              ({myHand.length})
+            </span>
+          </motion.div>
 
           {shouldShowUnoButton && (
             <UnoButton
@@ -448,6 +627,21 @@ export default function GamePage() {
           saidUno={hasSaidUno}
         />
       </div>
+
+      <AnimatePresence>
+        {isMyTurn && showTurnToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-40"
+          >
+            <div className="px-6 py-3 rounded-full bg-gradient-to-r from-[#FDD835] to-[#FFA000] text-gray-900 font-bold text-lg shadow-2xl shadow-yellow-500/40">
+              YOUR TURN!
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {isAiThinking && gameState.status !== "finished" && (

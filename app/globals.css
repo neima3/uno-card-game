@@ -466,3 +466,68 @@ textarea::placeholder {
 .color-btn:active {
   transform: scale(0.95);
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom, 16px), 16px);
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 12px);
+  }
+}
+
+button, 
+[role="button"],
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+.card-stack-3d {
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+.game-card-shadow {
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 2px 4px -1px rgba(0, 0, 0, 0.2),
+    0 10px 20px -5px rgba(0, 0, 0, 0.3);
+}
+
+.turn-pulse {
+  animation: turn-pulse 2s ease-in-out infinite;
+}
+
+@keyframes turn-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(253, 216, 53, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 8px rgba(253, 216, 53, 0);
+  }
+}
+
+.card-glow-animation {
+  animation: card-glow-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes card-glow-pulse {
+  0%, 100% { 
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  50% { 
+    filter: drop-shadow(0 0 16px currentColor) drop-shadow(0 0 24px currentColor);
+  }
+}
