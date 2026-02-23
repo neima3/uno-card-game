@@ -13,7 +13,7 @@ import {
   reshuffleDeckIfNeeded,
   CardColor,
 } from "@/lib/game-engine";
-import { getAIPlay, getAIDelay, shouldAISayUno } from "@/lib/ai-player";
+import { getAIPlay } from "@/lib/ai-player";
 
 export async function POST(request: NextRequest) {
   try {
@@ -255,23 +255,59 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Invalid move" }, { status: 400 });
         }
 
-        const finalState = reshuffleDeckIfNeeded(newGameState);
+        let currentState = reshuffleDeckIfNeeded(newGameState);
+        let maxAiTurns = 20;
+
+        while (currentState.status !== "finished" && maxAiTurns-- > 0) {
+          const nextPlayer = currentState.players[currentState.currentPlayerIndex];
+          if (!nextPlayer?.isAi) break;
+
+          const aiMove = getAIPlay(currentState, nextPlayer.id);
+
+          if (aiMove) {
+            const nextState = gamePlayCard(
+              currentState,
+              nextPlayer.id,
+              aiMove.cardId,
+              aiMove.chosenColor
+            );
+            if (nextState) {
+              currentState = reshuffleDeckIfNeeded(nextState);
+            } else {
+              let drawState = currentState.drawPile.length === 0 ? reshuffleDeckIfNeeded(currentState) : currentState;
+              const drawnState = gameDrawCard(drawState, nextPlayer.id);
+              if (drawnState) {
+                currentState = reshuffleDeckIfNeeded(drawnState);
+              } else {
+                break;
+              }
+            }
+          } else {
+            let drawState = currentState.drawPile.length === 0 ? reshuffleDeckIfNeeded(currentState) : currentState;
+            const drawnState = gameDrawCard(drawState, nextPlayer.id);
+            if (drawnState) {
+              currentState = reshuffleDeckIfNeeded(drawnState);
+            } else {
+              break;
+            }
+          }
+        }
 
         await db
           .update(games)
           .set({
-            status: finalState.status,
-            drawPile: finalState.drawPile,
-            discardPile: finalState.discardPile,
-            currentColor: finalState.currentColor,
-            currentPlayerIndex: finalState.currentPlayerIndex,
-            direction: finalState.direction,
-            winnerId: finalState.winnerId,
+            status: currentState.status,
+            drawPile: currentState.drawPile,
+            discardPile: currentState.discardPile,
+            currentColor: currentState.currentColor,
+            currentPlayerIndex: currentState.currentPlayerIndex,
+            direction: currentState.direction,
+            winnerId: currentState.winnerId,
             updatedAt: new Date(),
           })
           .where(eq(games.id, game.id));
 
-        for (const player of finalState.players) {
+        for (const player of currentState.players) {
           await db
             .update(players)
             .set({
@@ -290,16 +326,6 @@ export async function POST(request: NextRequest) {
         });
 
         const responseState = await getGameState(game.id, playerId);
-
-        if (finalState.status !== "finished") {
-          const currentPlayer = finalState.players[finalState.currentPlayerIndex];
-          if (currentPlayer?.isAi) {
-            setTimeout(async () => {
-              await executeAITurn(game.id, finalState);
-            }, getAIDelay(currentPlayer.aiDifficulty || "medium"));
-          }
-        }
-
         return NextResponse.json({ gameState: responseState });
       }
 
@@ -330,21 +356,66 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: "Cannot draw" }, { status: 400 });
         }
 
-        const finalState = reshuffleDeckIfNeeded(newGameState);
+        let currentState = reshuffleDeckIfNeeded(newGameState);
+        let maxAiTurns = 20;
+
+        while (currentState.status !== "finished" && maxAiTurns-- > 0) {
+          const nextPlayer = currentState.players[currentState.currentPlayerIndex];
+          if (!nextPlayer?.isAi) break;
+
+          const aiMove = getAIPlay(currentState, nextPlayer.id);
+
+          if (aiMove) {
+            const nextState = gamePlayCard(
+              currentState,
+              nextPlayer.id,
+              aiMove.cardId,
+              aiMove.chosenColor
+            );
+            if (nextState) {
+              currentState = reshuffleDeckIfNeeded(nextState);
+            } else {
+              let drawState = currentState.drawPile.length === 0 ? reshuffleDeckIfNeeded(currentState) : currentState;
+              const drawnState = gameDrawCard(drawState, nextPlayer.id);
+              if (drawnState) {
+                currentState = reshuffleDeckIfNeeded(drawnState);
+              } else {
+                break;
+              }
+            }
+          } else {
+            let drawState = currentState.drawPile.length === 0 ? reshuffleDeckIfNeeded(currentState) : currentState;
+            const drawnState = gameDrawCard(drawState, nextPlayer.id);
+            if (drawnState) {
+              currentState = reshuffleDeckIfNeeded(drawnState);
+            } else {
+              break;
+            }
+          }
+        }
 
         await db
           .update(games)
           .set({
-            drawPile: finalState.drawPile,
-            currentPlayerIndex: finalState.currentPlayerIndex,
+            status: currentState.status,
+            drawPile: currentState.drawPile,
+            discardPile: currentState.discardPile,
+            currentColor: currentState.currentColor,
+            currentPlayerIndex: currentState.currentPlayerIndex,
+            direction: currentState.direction,
+            winnerId: currentState.winnerId,
             updatedAt: new Date(),
           })
           .where(eq(games.id, game.id));
 
-        for (const player of finalState.players) {
+        for (const player of currentState.players) {
           await db
             .update(players)
-            .set({ hand: player.hand })
+            .set({
+              hand: player.hand,
+              hasSaidUno: player.hasSaidUno,
+              score: player.score,
+            })
             .where(eq(players.id, player.id));
         }
 
@@ -356,16 +427,6 @@ export async function POST(request: NextRequest) {
         });
 
         const responseState = await getGameState(game.id, playerId);
-
-        if (finalState.status !== "finished") {
-          const currentPlayer = finalState.players[finalState.currentPlayerIndex];
-          if (currentPlayer?.isAi) {
-            setTimeout(async () => {
-              await executeAITurn(game.id, finalState);
-            }, getAIDelay(currentPlayer.aiDifficulty || "medium"));
-          }
-        }
-
         return NextResponse.json({ gameState: responseState });
       }
 
@@ -506,86 +567,6 @@ async function getGameState(gameId: string, playerId: string) {
     })),
     myHand: state.players.find((p: any) => p.id === playerId)?.hand || [],
   };
-}
-
-async function executeAITurn(gameId: string, gameState: any) {
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (!currentPlayer?.isAi) return;
-
-  const [game] = await db.select().from(games).where(eq(games.id, gameId));
-  const gamePlayers = await db.select().from(players).where(eq(players.gameId, gameId));
-  const fullState = await buildGameState(game, gamePlayers);
-
-  const aiMove = getAIPlay(fullState, currentPlayer.id);
-
-  if (aiMove) {
-    const newGameState = gamePlayCard(
-      fullState,
-      currentPlayer.id,
-      aiMove.cardId,
-      aiMove.chosenColor
-    );
-
-    if (newGameState) {
-      const finalState = reshuffleDeckIfNeeded(newGameState);
-
-      await db.update(games).set({
-        status: finalState.status,
-        drawPile: finalState.drawPile,
-        discardPile: finalState.discardPile,
-        currentColor: finalState.currentColor,
-        currentPlayerIndex: finalState.currentPlayerIndex,
-        direction: finalState.direction,
-        winnerId: finalState.winnerId,
-        updatedAt: new Date(),
-      }).where(eq(games.id, gameId));
-
-      for (const player of finalState.players) {
-        await db.update(players).set({
-          hand: player.hand,
-          hasSaidUno: player.hasSaidUno,
-        }).where(eq(players.id, player.id));
-      }
-
-      if (finalState.status !== "finished") {
-        const nextPlayer = finalState.players[finalState.currentPlayerIndex];
-        if (nextPlayer?.isAi) {
-          setTimeout(async () => {
-            await executeAITurn(gameId, finalState);
-          }, getAIDelay(nextPlayer.aiDifficulty || "medium"));
-        }
-      }
-    }
-  } else {
-    let state = fullState;
-    if (state.drawPile.length === 0) {
-      state = reshuffleDeckIfNeeded(state);
-    }
-
-    const newGameState = gameDrawCard(state, currentPlayer.id);
-    if (newGameState) {
-      const finalState = reshuffleDeckIfNeeded(newGameState);
-
-      await db.update(games).set({
-        drawPile: finalState.drawPile,
-        currentPlayerIndex: finalState.currentPlayerIndex,
-        updatedAt: new Date(),
-      }).where(eq(games.id, gameId));
-
-      for (const player of finalState.players) {
-        await db.update(players).set({
-          hand: player.hand,
-        }).where(eq(players.id, player.id));
-      }
-
-      const nextPlayer = finalState.players[finalState.currentPlayerIndex];
-      if (nextPlayer?.isAi) {
-        setTimeout(async () => {
-          await executeAITurn(gameId, finalState);
-        }, getAIDelay(nextPlayer.aiDifficulty || "medium"));
-      }
-    }
-  }
 }
 
 export async function GET(request: NextRequest) {

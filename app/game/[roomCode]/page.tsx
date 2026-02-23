@@ -13,11 +13,12 @@ import { TurnIndicator } from "@/components/game/TurnIndicator";
 import { UnoButton } from "@/components/game/UnoButton";
 import { ColorPicker } from "@/components/game/ColorPicker";
 import { WinScreen } from "@/components/game/WinScreen";
+import { ActionLog, ActionLogEntry, createLogEntry } from "@/components/game/ActionLog";
 import { Button } from "@/components/ui/button";
 
 import { Card, CardColor, GameState, Player, getPlayableCards } from "@/lib/game-engine";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
-import { ArrowLeft, Volume2, VolumeX, LogOut } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX } from "lucide-react";
 
 export default function GamePage() {
   const params = useParams();
@@ -31,18 +32,23 @@ export default function GamePage() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hasSaidUno, setHasSaidUno] = useState(false);
   const [pollFailures, setPollFailures] = useState(0);
+  const [actionLog, setActionLog] = useState<ActionLogEntry[]>([]);
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
   const { playSound } = useSoundEffects();
 
   const playerId = typeof window !== "undefined" ? localStorage.getItem("playerId") : null;
   const playerName = typeof window !== "undefined" ? localStorage.getItem("playerName") : "Player";
 
+  const addLog = useCallback((message: string) => {
+    setActionLog(prev => [...prev.slice(-10), createLogEntry(message)]);
+  }, []);
+
   const fetchGameState = useCallback(async () => {
     if (!playerId) return;
 
     try {
       const response = await fetch(`/api/game?roomCode=${roomCode}&playerId=${playerId}`);
-
       const data = await response.json();
 
       if (!response.ok) {
@@ -63,15 +69,7 @@ export default function GamePage() {
 
       setGameState(data.gameState);
       setMyHand(data.gameState.myHand || []);
-
-      if (data.gameState.status === "finished") {
-        return;
-      }
-
-      const currentPlayer = data.gameState.players[data.gameState.currentPlayerIndex];
-      if (currentPlayer?.id === playerId && currentPlayer?.isAi) {
-        setTimeout(fetchGameState, 1500);
-      }
+      setIsAiThinking(false);
     } catch (error) {
       setPollFailures((prev) => prev + 1);
       toast.error("Failed to fetch game state");
@@ -82,7 +80,7 @@ export default function GamePage() {
 
   useEffect(() => {
     fetchGameState();
-    const interval = setInterval(fetchGameState, 2000);
+    const interval = setInterval(fetchGameState, 3000);
     return () => clearInterval(interval);
   }, [fetchGameState]);
 
@@ -113,6 +111,8 @@ export default function GamePage() {
   const executePlayCard = async (cardId: string, chosenColor?: CardColor) => {
     if (!playerId) return;
 
+    setIsAiThinking(true);
+
     try {
       const response = await fetch("/api/game", {
         method: "POST",
@@ -129,6 +129,7 @@ export default function GamePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        setIsAiThinking(false);
         toast.error(data.error || "Failed to play card");
         return;
       }
@@ -141,14 +142,23 @@ export default function GamePage() {
         else playSound("play");
       }
 
+      const card = myHand.find((c) => c.id === cardId);
+      const cardName = getCardDisplayName(card, chosenColor);
+      addLog(`You played ${cardName}`);
+
       setGameState(data.gameState);
       setMyHand(data.gameState.myHand || []);
       setPendingWildCard(null);
+
+      if (data.gameState.status === "finished") {
+        setIsAiThinking(false);
+      }
 
       if (myHand.length === 2 && !hasSaidUno) {
         toast("Don't forget to say UNO!", { icon: "⚠️" });
       }
     } catch (error) {
+      setIsAiThinking(false);
       toast.error("Failed to play card");
     }
   };
@@ -161,6 +171,8 @@ export default function GamePage() {
       toast.error("It's not your turn!");
       return;
     }
+
+    setIsAiThinking(true);
 
     try {
       const response = await fetch("/api/game", {
@@ -176,16 +188,23 @@ export default function GamePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        setIsAiThinking(false);
         toast.error(data.error || "Failed to draw card");
         return;
       }
 
       if (soundEnabled) playSound("draw");
 
+      addLog("You drew a card");
+
       setGameState(data.gameState);
       setMyHand(data.gameState.myHand || []);
-      toast.success("Drew a card");
+
+      if (data.gameState.status === "finished") {
+        setIsAiThinking(false);
+      }
     } catch (error) {
+      setIsAiThinking(false);
       toast.error("Failed to draw card");
     }
   };
@@ -213,7 +232,7 @@ export default function GamePage() {
 
       if (soundEnabled) playSound("uno");
       setHasSaidUno(true);
-      toast.success("UNO!");
+      addLog("You said UNO!");
       setGameState(data.gameState);
     } catch (error) {
       toast.error("Failed to say UNO");
@@ -246,19 +265,34 @@ export default function GamePage() {
         setGameState(data.gameState);
         setMyHand(data.gameState.myHand || []);
         setHasSaidUno(false);
+        setActionLog([]);
       }
     } catch (error) {
       toast.error("Failed to start new game");
     }
   };
 
+  const getCardDisplayName = (card: Card | undefined, chosenColor?: CardColor): string => {
+    if (!card) return "a card";
+    const colorName = chosenColor || (card.color !== "wild" ? card.color : "");
+    const valueNames: Record<string, string> = {
+      skip: "Skip",
+      reverse: "Reverse",
+      draw2: "+2",
+      wild: "Wild",
+      wild4: "Wild +4",
+    };
+    const valueName = valueNames[card.value] || card.value;
+    return colorName ? `${colorName} ${valueName}` : valueName;
+  };
+
   if (loading || !gameState) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--bg-deep)]">
+      <main className="min-h-screen min-h-[100dvh] flex items-center justify-center game-bg">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-white/20 border-t-[var(--uno-red)] rounded-full"
+          className="w-12 h-12 border-4 border-white/20 border-t-[#E53935] rounded-full"
         />
       </main>
     );
@@ -278,23 +312,21 @@ export default function GamePage() {
 
   const currentColorStyle = gameState.currentColor && gameState.currentColor !== "wild"
     ? {
-        red: { bg: "#FF2B2B", glow: "var(--neon-glow-red)" },
-        blue: { bg: "#1A8CFF", glow: "var(--neon-glow-blue)" },
-        green: { bg: "#00CC66", glow: "var(--neon-glow-green)" },
-        yellow: { bg: "#FFD700", glow: "var(--neon-glow-yellow)" },
+        red: { bg: "#E53935", glow: "var(--neon-glow-red)" },
+        blue: { bg: "#1E88E5", glow: "var(--neon-glow-blue)" },
+        green: { bg: "#43A047", glow: "var(--neon-glow-green)" },
+        yellow: { bg: "#FDD835", glow: "var(--neon-glow-yellow)" },
       }[gameState.currentColor as "red" | "blue" | "green" | "yellow"]
     : null;
 
   return (
-    <main className="min-h-screen flex flex-col relative overflow-hidden">
-      <div className="absolute inset-0 table-felt pointer-events-none" />
-
-      <header className="relative z-20 flex items-center justify-between p-3 sm:p-4">
+    <main className="min-h-screen min-h-[100dvh] flex flex-col relative overflow-hidden game-bg">
+      <header className="relative z-20 flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.push("/")}
-          className="text-white/70 hover:text-white hover:bg-white/10"
+          className="text-white/60 hover:text-white hover:bg-white/10 w-9 h-9"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
@@ -302,37 +334,43 @@ export default function GamePage() {
         <TurnIndicator
           currentplayerName={currentPlayer?.displayName || "Unknown"}
           message={isMyTurn ? "Your turn!" : undefined}
+          isAi={currentPlayer?.isAi && !isMyTurn}
+          direction={gameState.direction}
         />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className="text-white/70 hover:text-white hover:bg-white/10"
-        >
-          {soundEnabled ? (
-            <Volume2 className="w-5 h-5" />
-          ) : (
-            <VolumeX className="w-5 h-5" />
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-white/40 text-xs font-mono hidden sm:block">{roomCode}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="text-white/60 hover:text-white hover:bg-white/10 w-9 h-9"
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-5 h-5" />
+            ) : (
+              <VolumeX className="w-5 h-5" />
+            )}
+          </Button>
+        </div>
       </header>
 
-      <div className="flex-1 flex flex-col relative z-10">
-        <div className="flex-1 flex items-start justify-center gap-2 sm:gap-4 p-2 sm:p-4 flex-wrap">
-          {opponents.map((opponent) => (
+      <div className="flex-1 flex flex-col relative z-10 px-2">
+        <div className="flex items-start justify-center gap-2 sm:gap-4 py-2 overflow-x-auto">
+          {opponents.map((opponent, index) => (
             <OpponentHand
               key={opponent.id}
               cardCount={opponent.hand.length}
               displayName={opponent.displayName}
               isCurrentTurn={gameState.players[gameState.currentPlayerIndex]?.id === opponent.id}
               hasSaidUno={opponent.hasSaidUno}
+              seatIndex={index}
             />
           ))}
         </div>
 
-        <div className="flex-1 flex items-center justify-center gap-4 sm:gap-12 lg:gap-20 px-4 relative">
-          <div className="flex flex-col items-center gap-3">
+        <div className="flex-1 flex items-center justify-center gap-6 sm:gap-10 lg:gap-16 px-4 py-4">
+          <div className="flex flex-col items-center gap-2">
             <DrawPile
               count={gameState.drawPile.length}
               onDraw={handleDrawCard}
@@ -340,71 +378,57 @@ export default function GamePage() {
             />
           </div>
 
-          <div className="flex flex-col items-center gap-3">
-            <DiscardPile
-              cards={gameState.discardPile}
-              currentColor={gameState.currentColor}
-            />
-            
-            {currentColorStyle && topCard?.color === "wild" && (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="mt-2 flex items-center gap-2"
-              >
-                <span className="text-white/50 text-xs sm:text-sm">Current:</span>
-                <motion.div
-                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-white/50"
-                  style={{ 
-                    backgroundColor: currentColorStyle.bg,
-                    boxShadow: currentColorStyle.glow,
-                  }}
-                  animate={{
-                    scale: [1, 1.1, 1],
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                />
-              </motion.div>
-            )}
-          </div>
-
-          {gameState.currentColor && topCard?.color !== "wild" && (
+          {currentColorStyle && (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="absolute -bottom-4 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm"
+              className="flex flex-col items-center gap-1"
             >
-              <span className="text-white/50 text-xs">Active:</span>
               <motion.div
-                className="w-5 h-5 rounded-full border-2 border-white/50"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/30"
                 style={{ 
-                  backgroundColor: currentColorStyle?.bg,
-                  boxShadow: currentColorStyle?.glow,
+                  backgroundColor: currentColorStyle.bg,
+                  boxShadow: currentColorStyle.glow,
+                }}
+                animate={{
+                  scale: [1, 1.08, 1],
+                }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
                 }}
               />
             </motion.div>
           )}
+
+          <div className="flex flex-col items-center gap-2">
+            <DiscardPile
+              cards={gameState.discardPile}
+              currentColor={gameState.currentColor}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-center pb-2">
+          <ActionLog entries={actionLog} maxVisible={2} />
         </div>
 
         <div className="flex-1" />
       </div>
 
-      <div className="relative z-10 p-3 sm:p-4 pb-4 sm:pb-6">
+      <div className="relative z-10 p-3 sm:p-4 pb-safe">
         <div className="flex items-center justify-center gap-3 sm:gap-4 mb-3">
           <motion.span
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold ${
               isMyTurn
-                ? "bg-[var(--uno-yellow)] text-gray-900 shadow-lg"
+                ? "bg-[#FDD835] text-gray-900 shadow-lg"
                 : "bg-white/10 text-white/70"
             }`}
           >
-            {playerName} ({myHand.length} cards)
+            {playerName} ({myHand.length})
           </motion.span>
 
           {shouldShowUnoButton && (
@@ -424,6 +448,26 @@ export default function GamePage() {
           saidUno={hasSaidUno}
         />
       </div>
+
+      <AnimatePresence>
+        {isAiThinking && gameState.status !== "finished" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="w-8 h-8 border-3 border-white/20 border-t-white rounded-full"
+              />
+              <span className="text-white/80 text-sm font-medium">AI thinking...</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {pendingWildCard && (

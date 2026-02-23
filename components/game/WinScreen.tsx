@@ -16,17 +16,18 @@ interface WinScreenProps {
 function Confetti() {
   const pieces = useMemo(() => {
     const colors = [
-      "#FF2B2B", "#1A8CFF", "#00CC66", "#FFD700", 
-      "#9B59B6", "#FF69B4", "#00CED1", "#FF8C00"
+      "#E53935", "#1E88E5", "#43A047", "#FDD835", 
+      "#8E24AA", "#FF7043", "#00BCD4", "#FF4081"
     ];
-    return Array.from({ length: 80 }, (_, i) => ({
+    return Array.from({ length: 100 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       delay: Math.random() * 2,
       color: colors[Math.floor(Math.random() * colors.length)],
-      size: Math.random() * 8 + 4,
+      size: Math.random() * 10 + 5,
       duration: 3 + Math.random() * 2,
       rotation: Math.random() * 720 - 360,
+      shape: Math.random() > 0.5 ? "circle" : "square",
     }));
   }, []);
 
@@ -58,8 +59,8 @@ function Confetti() {
             width: piece.size,
             height: piece.size,
             backgroundColor: piece.color,
-            borderRadius: Math.random() > 0.5 ? "50%" : "2px",
-            boxShadow: `0 0 10px ${piece.color}50`,
+            borderRadius: piece.shape === "circle" ? "50%" : "2px",
+            boxShadow: `0 0 8px ${piece.color}50`,
           }}
         />
       ))}
@@ -88,6 +89,34 @@ function AnimatedNumber({ value, duration = 1500 }: { value: number; duration?: 
   return <span>{displayValue}</span>;
 }
 
+function PlayerResult({ player, isWinner, rank }: { player: Player; isWinner: boolean; rank: number }) {
+  const cardCount = player.hand.length;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.1 * rank }}
+      className={`flex items-center gap-3 p-2.5 rounded-xl ${
+        isWinner 
+          ? "bg-[#FDD835]/20 border border-[#FDD835]/30" 
+          : "bg-white/5"
+      }`}
+    >
+      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 text-white/60 text-sm font-bold">
+        {rank}
+      </div>
+      <PlayerAvatar displayName={player.displayName} size="sm" />
+      <span className={`flex-1 text-sm font-medium ${isWinner ? "text-[#FDD835]" : "text-white/70"}`}>
+        {player.displayName}
+      </span>
+      <span className="text-white/40 text-sm">
+        {cardCount} {cardCount === 1 ? "card" : "cards"}
+      </span>
+    </motion.div>
+  );
+}
+
 export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenProps) {
   const [show, setShow] = useState(false);
 
@@ -114,6 +143,11 @@ export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenPro
   };
 
   const score = calculateScore(winner);
+  const sortedPlayers = [...players].sort((a, b) => {
+    if (a.id === winner.id) return -1;
+    if (b.id === winner.id) return 1;
+    return a.hand.length - b.hand.length;
+  });
 
   return (
     <AnimatePresence>
@@ -124,7 +158,7 @@ export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenPro
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-lg p-4"
           >
             <motion.div
               initial={{ scale: 0, rotate: -10, y: 50 }}
@@ -135,54 +169,71 @@ export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenPro
                 damping: 20,
                 delay: 0.1,
               }}
-              className="relative w-full max-w-md"
+              className="relative w-full max-w-sm"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-[var(--uno-red)]/20 via-transparent to-[var(--uno-blue)]/20 rounded-3xl blur-xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#FDD835]/10 via-transparent to-[#E53935]/10 rounded-3xl blur-2xl" />
               
-              <div className="relative bg-gradient-to-br from-[var(--bg-surface)] to-[var(--bg-mid)] rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl text-center">
+              <div className="relative bg-gradient-to-b from-[#2a2a3e] to-[#1a1a2e] rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl">
                 <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
+                  initial={{ scale: 0, y: -20 }}
+                  animate={{ scale: 1, y: 0 }}
                   transition={{ 
                     type: "spring", 
                     stiffness: 300, 
                     damping: 15,
                     delay: 0.3,
                   }}
-                  className="text-6xl sm:text-7xl mb-4"
+                  className="text-center mb-4"
                 >
-                  🏆
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, -10, 10, -10, 10, 0],
+                      scale: [1, 1.1, 1],
+                    }}
+                    transition={{ 
+                      duration: 0.6, 
+                      delay: 0.5,
+                    }}
+                    className="text-5xl sm:text-6xl inline-block"
+                  >
+                    🏆
+                  </motion.div>
                 </motion.div>
 
                 <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.4 }}
-                  className="mb-2"
+                  className="flex flex-col items-center mb-4"
                 >
-                  <PlayerAvatar displayName={winner.displayName} size="lg" />
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  >
+                    <PlayerAvatar displayName={winner.displayName} size="lg" />
+                  </motion.div>
+                  
+                  <motion.h2
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-2xl sm:text-3xl font-black text-white mt-3"
+                    style={{
+                      textShadow: "0 0 30px rgba(253,216,53,0.5)",
+                    }}
+                  >
+                    {winner.displayName}
+                  </motion.h2>
+
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="text-[#FDD835] text-sm font-bold tracking-widest mt-1"
+                  >
+                    WINNER!
+                  </motion.p>
                 </motion.div>
-
-                <motion.h2
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="text-3xl sm:text-4xl font-black text-white mb-3"
-                  style={{
-                    textShadow: "0 0 30px rgba(255,215,0,0.5)",
-                  }}
-                >
-                  {winner.displayName}
-                </motion.h2>
-
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="text-white/60 text-sm uppercase tracking-widest mb-4"
-                >
-                  Winner!
-                </motion.p>
 
                 <motion.div
                   initial={{ scale: 0 }}
@@ -192,31 +243,49 @@ export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenPro
                     stiffness: 200,
                     delay: 0.7,
                   }}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-[var(--uno-yellow)] to-orange-500 mb-6"
+                  className="flex justify-center mb-5"
                 >
-                  <span className="text-gray-900 font-bold text-3xl sm:text-4xl">
-                    +<AnimatedNumber value={score} />
-                  </span>
-                  <span className="text-gray-900/70 font-medium text-sm">points</span>
+                  <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#FDD835] to-[#FFA000] shadow-lg">
+                    <span className="text-gray-900 font-black text-2xl sm:text-3xl">
+                      +<AnimatedNumber value={score} />
+                    </span>
+                    <span className="text-gray-900/70 font-semibold text-sm">pts</span>
+                  </div>
                 </motion.div>
 
                 <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.8 }}
-                  className="flex flex-col gap-3"
+                  className="space-y-2 mb-5"
+                >
+                  {sortedPlayers.map((player, index) => (
+                    <PlayerResult 
+                      key={player.id} 
+                      player={player} 
+                      isWinner={player.id === winner.id}
+                      rank={index + 1}
+                    />
+                  ))}
+                </motion.div>
+
+                <motion.div
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.9 }}
+                  className="flex flex-col gap-2.5"
                 >
                   <Button 
                     onClick={onPlayAgain} 
                     size="lg" 
-                    className="w-full h-12 bg-white text-gray-900 hover:bg-gray-100 font-bold text-base"
+                    className="w-full h-12 bg-white text-gray-900 hover:bg-gray-100 font-bold text-base shadow-lg"
                   >
                     Play Again
                   </Button>
                   <Button 
                     onClick={onExit} 
                     variant="outline" 
-                    className="w-full h-12 border-white/20 text-white hover:bg-white/10 font-semibold"
+                    className="w-full h-11 border-white/15 text-white/70 hover:bg-white/5 hover:text-white font-semibold"
                   >
                     Main Menu
                   </Button>
