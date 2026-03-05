@@ -67,9 +67,23 @@ export function OpponentSlot({ opponent, isCurrentTurn }: OpponentSlotProps) {
         )}
 
         {/* Status Text */}
-        {isCurrentTurn && (
+        {isCurrentTurn && opponent.isAi && (
+            <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-[#F9A825] text-black text-[9px] font-bold px-2 py-0.5 rounded-full shadow whitespace-nowrap flex items-center gap-1"
+            >
+                <span className="inline-flex gap-[2px]">
+                    <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+                </span>
+                THINKING
+            </motion.div>
+        )}
+        {isCurrentTurn && !opponent.isAi && (
             <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-[#F9A825] text-black text-[9px] font-bold px-2 py-0.5 rounded-full shadow whitespace-nowrap">
-                THINKING...
+                PLAYING...
             </div>
         )}
     </motion.div>

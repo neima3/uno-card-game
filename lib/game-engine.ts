@@ -171,7 +171,7 @@ export function playCard(
   return newState;
 }
 
-function getNextPlayerIndex(state: GameState, currentIndex: number): number {
+export function getNextPlayerIndex(state: GameState, currentIndex: number): number {
   const numPlayers = state.players.length;
   return (currentIndex + state.direction + numPlayers) % numPlayers;
 }
