@@ -13,6 +13,7 @@ interface UnoCardProps {
   index?: number;
   showFace?: boolean;
   size?: "sm" | "md" | "lg" | "xl";
+  variant?: "default" | "compact";
 }
 
 const cardColors: Record<CardColor, string> = {
@@ -20,10 +21,17 @@ const cardColors: Record<CardColor, string> = {
   blue: "#1565C0",
   green: "#2E7D32",
   yellow: "#F9A825",
-  wild: "#000000",
+  wild: "#1a1a1a",
 };
 
-// SVG Symbols for Action Cards
+const cardGlows: Record<CardColor, string> = {
+  red: "0 0 30px rgba(211, 47, 47, 0.6), 0 0 60px rgba(211, 47, 47, 0.3)",
+  blue: "0 0 30px rgba(21, 101, 192, 0.6), 0 0 60px rgba(21, 101, 192, 0.3)",
+  green: "0 0 30px rgba(46, 125, 50, 0.6), 0 0 60px rgba(46, 125, 50, 0.3)",
+  yellow: "0 0 30px rgba(249, 168, 37, 0.6), 0 0 60px rgba(249, 168, 37, 0.3)",
+  wild: "0 0 20px rgba(255, 255, 255, 0.3), 0 0 40px rgba(255, 255, 255, 0.1)",
+};
+
 const Symbols = {
   Skip: ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -46,126 +54,159 @@ export function UnoCard({
   index = 0,
   showFace = true,
   size = "md",
+  variant = "default",
 }: UnoCardProps) {
   const isWild = card.color === "wild";
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
-  // Size dimensions
   const dimensions = {
     sm: { w: "w-10", h: "h-14", text: "text-xs", oval: "w-8 h-12" },
     md: { w: "w-16", h: "h-24", text: "text-base", oval: "w-12 h-20" },
-    lg: { w: "w-24", h: "h-36", text: "text-2xl", oval: "w-20 h-28" },
-    xl: { w: "w-32", h: "h-48", text: "text-4xl", oval: "w-24 h-36" },
+    lg: { w: "w-20 lg:w-24", h: "h-28 lg:h-36", text: "text-2xl", oval: "w-16 lg:w-20 h-24 lg:h-28" },
+    xl: { w: "w-28 lg:w-32", h: "h-40 lg:h-48", text: "text-4xl", oval: "w-24 lg:w-28 h-32 lg:h-36" },
   }[size];
 
-  // Helper to get small corner value
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current || !isPlayable || disabled) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const tiltX = (y - 0.5) * 15;
+    const tiltY = (x - 0.5) * -15;
+    setTilt({ x: tiltX, y: tiltY });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0 });
+    setIsHovered(false);
+  };
+
   const getCornerValue = () => {
     if (card.value === "skip") return "⊘";
     if (card.value === "reverse") return "⇄";
     if (card.value === "draw2") return "+2";
-    if (card.value === "wild") return ""; // Wild corner has special 4-color symbol
+    if (card.value === "wild") return "";
     if (card.value === "wild4") return "+4";
     return card.value;
   };
 
-  // Helper to render center content
   const renderCenterContent = () => {
     if (card.value === "skip") return <Symbols.Skip className="w-full h-full p-1" />;
     if (card.value === "reverse") return <Symbols.Reverse className="w-full h-full p-1" />;
-    if (card.value === "draw2") return <span className="font-black tracking-tighter" style={{ fontSize: '120%' }}>+2</span>;
+    if (card.value === "draw2") return <span className="font-black tracking-tighter" style={{ fontSize: '140%' }}>+2</span>;
     if (card.value === "wild") return (
-       <div className="relative w-full h-full flex items-center justify-center">
-         <div className="w-[90%] h-[90%] rounded-full bg-black flex items-center justify-center">
-             <span className="text-white font-black text-[30%] tracking-widest italic" style={{ fontFamily: 'var(--font-sans)' }}>WILD</span>
-         </div>
-       </div>
-    );
-    if (card.value === "wild4") return (
       <div className="relative w-full h-full flex items-center justify-center">
-        <div className="w-[90%] h-[90%] rounded-full bg-black flex items-center justify-center gap-0.5 flex-wrap px-1">
-             <span className="text-white font-black text-[40%] tracking-tighter">+4</span>
-             <div className="absolute inset-0 flex flex-wrap opacity-30">
-                <div className="w-1/2 h-1/2 bg-[#D32F2F]"></div>
-                <div className="w-1/2 h-1/2 bg-[#1565C0]"></div>
-                <div className="w-1/2 h-1/2 bg-[#2E7D32]"></div>
-                <div className="w-1/2 h-1/2 bg-[#F9A825]"></div>
-             </div>
+        <div className="w-[85%] h-[85%] rounded-full bg-gradient-to-br from-gray-900 to-black flex items-center justify-center border-2 border-white/10">
+          <span className="text-white font-black text-[28%] tracking-widest italic drop-shadow-lg">WILD</span>
         </div>
       </div>
     );
-    
-    return <span className="font-black text-[120%]" style={{ textShadow: "2px 2px 0px rgba(0,0,0,0.2)" }}>{card.value}</span>;
+    if (card.value === "wild4") return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <div className="w-[85%] h-[85%] rounded-full bg-gradient-to-br from-gray-900 to-black flex items-center justify-center border-2 border-white/10 relative overflow-hidden">
+          <span className="text-white font-black text-[35%] tracking-tighter relative z-10">+4</span>
+          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 opacity-40">
+            <div className="bg-[#D32F2F]" />
+            <div className="bg-[#1565C0]" />
+            <div className="bg-[#2E7D32]" />
+            <div className="bg-[#F9A825]" />
+          </div>
+        </div>
+      </div>
+    );
+    return <span className="font-black text-[130%]" style={{ textShadow: "2px 2px 0px rgba(0,0,0,0.3)" }}>{card.value}</span>;
   };
 
   if (!showFace) {
-    // Authentic Card Back
     return (
       <div 
+        ref={cardRef}
         className={cn(
-          "relative rounded-lg overflow-hidden shadow-xl transition-transform border-[3px] border-white select-none", 
+          "relative rounded-xl overflow-hidden select-none transition-all duration-300",
           dimensions.w, dimensions.h
         )}
-        style={{ 
-          backgroundColor: "#111",
-          transform: isHovered ? "scale(1.05)" : "scale(1)",
+        style={{
+          boxShadow: isHovered ? "0 10px 40px rgba(0,0,0,0.4), 0 0 30px rgba(255,255,255,0.1)" : "0 4px 20px rgba(0,0,0,0.3)",
+          transform: isHovered ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.05)` : "perspective(1000px) rotateX(0deg) rotateY(0deg)",
         }}
+        onMouseMove={handleMouseMove}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={handleMouseLeave}
       >
-        {/* Black background */}
-        <div className="absolute inset-0 bg-[#1a1a1a]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-[#1a1a1a] to-gray-900" />
         
-        {/* Rainbow Oval Border */}
-        <div className="absolute inset-[6%] rounded-[50%] opacity-90"
+        <div className="absolute inset-[8%] rounded-[50%] overflow-hidden"
              style={{
-               background: "conic-gradient(#D32F2F, #F9A825, #2E7D32, #1565C0, #D32F2F)",
-               padding: "6%" // Thickness of rainbow ring
+               background: "conic-gradient(from 0deg, #D32F2F, #F9A825, #2E7D32, #1565C0, #D32F2F)",
              }}>
-             <div className="w-full h-full bg-[#1a1a1a] rounded-[50%] flex items-center justify-center">
-                <span className="text-white font-black italic tracking-tighter" 
-                      style={{ 
-                        fontSize: size === 'sm' ? '10px' : size === 'md' ? '18px' : '32px',
-                        textShadow: "1px 1px 0 #F9A825"
-                      }}>
-                  UNO
-                </span>
-             </div>
+          <div className="absolute inset-[15%] bg-gradient-to-br from-gray-900 via-[#1a1a1a] to-gray-900 rounded-[50%] flex items-center justify-center">
+            <span className="text-white font-black italic tracking-tighter drop-shadow-lg" 
+                  style={{ 
+                    fontSize: size === 'sm' ? '10px' : size === 'md' ? '16px' : size === 'lg' ? '22px' : '28px',
+                    textShadow: "2px 2px 0 #F9A825, -1px -1px 0 #D32F2F"
+                  }}>
+              UNO
+            </span>
+          </div>
         </div>
         
-        {/* Subtle texture */}
-        <div className="absolute inset-0 opacity-20 bg-[url('/noise.svg')]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none" />
+        
+        <div className="absolute inset-0 border border-white/10 rounded-xl pointer-events-none" />
       </div>
     );
   }
 
-  // Card Face
   const baseColor = cardColors[card.color];
-  const textColor = isWild ? "white" : baseColor;
+  const glowStyle = cardGlows[card.color];
 
   return (
     <motion.div
-      whileHover={isPlayable && !disabled ? { y: -12, scale: 1.05, zIndex: 50 } : {}}
+      ref={cardRef}
+      whileHover={isPlayable && !disabled ? { y: -16, zIndex: 50 } : {}}
       whileTap={isPlayable && !disabled ? { scale: 0.95 } : {}}
       onClick={!disabled ? onClick : undefined}
+      onMouseMove={handleMouseMove}
       onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+      onHoverEnd={handleMouseLeave}
       className={cn(
-        "relative rounded-lg overflow-hidden select-none transition-all duration-200",
+        "relative rounded-xl overflow-hidden select-none cursor-default",
         dimensions.w, dimensions.h,
-        disabled && "grayscale-[40%] opacity-60",
-        isPlayable && !disabled && "cursor-pointer ring-2 ring-white ring-offset-2 ring-offset-transparent shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+        disabled && "grayscale-[50%] opacity-50",
+        isPlayable && !disabled && "cursor-pointer"
       )}
       style={{
         backgroundColor: baseColor,
-        boxShadow: "0 4px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)"
+        boxShadow: isPlayable && isHovered && !disabled 
+          ? `${glowStyle}, 0 8px 32px rgba(0,0,0,0.4)` 
+          : "0 4px 20px rgba(0,0,0,0.3)",
+        transform: isHovered && isPlayable && !disabled 
+          ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(1.05)` 
+          : "perspective(1000px) rotateX(0deg) rotateY(0deg)",
+        transition: "transform 0.15s ease-out, box-shadow 0.3s ease",
       }}
     >
-      {/* Playable Indicator Label */}
       {isPlayable && isHovered && !disabled && (
-        <div className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg z-50">
-          ✓ PLAY
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-white text-black text-[11px] font-bold px-3 py-1 rounded-full shadow-lg z-50"
+        >
+          PLAY
+        </motion.div>
       )}
 
-      {/* Wild Card Background Quadrants */}
+      {isPlayable && !disabled && (
+        <div 
+          className="absolute inset-0 rounded-xl pointer-events-none z-10"
+          style={{
+            boxShadow: `inset 0 0 0 2px rgba(255,255,255,0.4), inset 0 0 20px rgba(255,255,255,0.1)`,
+          }}
+        />
+      )}
+
       {isWild && (
         <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
           <div className="bg-[#D32F2F]" />
@@ -175,41 +216,47 @@ export function UnoCard({
         </div>
       )}
 
-      {/* Top Left Corner */}
-      <div className="absolute top-1 left-1.5 flex flex-col items-center">
+      <div className="absolute top-1.5 left-2 flex flex-col items-center">
         <span className={cn("font-bold text-white drop-shadow-md leading-none", dimensions.text)}>
           {getCornerValue()}
         </span>
       </div>
 
-      {/* Center Oval */}
       <div 
         className={cn(
-            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-[50%] flex items-center justify-center shadow-inner",
-            dimensions.oval
+          "absolute top-1/2 left-1/2 bg-white rounded-[50%] flex items-center justify-center",
+          dimensions.oval
         )}
-        style={{ transform: "translate(-50%, -50%) rotate(-25deg)" }}
+        style={{ 
+          transform: "translate(-50%, -50%) rotate(-25deg)",
+          boxShadow: "inset 0 2px 8px rgba(0,0,0,0.15), 0 2px 4px rgba(255,255,255,0.1)",
+        }}
       >
         <div 
-          className={cn("font-black flex items-center justify-center w-full h-full", dimensions.text)}
+          className="font-black flex items-center justify-center w-full h-full"
           style={{ 
             color: isWild ? "black" : baseColor, 
-            fontSize: "250%" // Make center content huge
+            fontSize: "280%",
+            transform: "rotate(25deg)",
           }}
         >
           {renderCenterContent()}
         </div>
       </div>
 
-      {/* Bottom Right Corner (Inverted) */}
-      <div className="absolute bottom-1 right-1.5 flex flex-col items-center rotate-180">
+      <div className="absolute bottom-1.5 right-2 flex flex-col items-center rotate-180">
         <span className={cn("font-bold text-white drop-shadow-md leading-none", dimensions.text)}>
           {getCornerValue()}
         </span>
       </div>
 
-      {/* Glossy Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white/25 via-white/5 to-transparent pointer-events-none rounded-xl" />
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none rounded-xl" />
+
+      {isHovered && isPlayable && !disabled && (
+        <div className="absolute inset-0 bg-white/5 pointer-events-none rounded-xl" />
+      )}
     </motion.div>
   );
 }

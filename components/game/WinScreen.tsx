@@ -1,10 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
 import { Player } from "@/lib/game-engine";
 import { PlayerAvatar } from "./PlayerAvatar";
-import { UnoCard } from "./UnoCard"; // For visual flair
 
 interface WinScreenProps {
   winner: Player;
@@ -13,34 +11,79 @@ interface WinScreenProps {
   onExit: () => void;
 }
 
-// Simple Confetti using DOM elements for performance/simplicity without canvas lib
 function Confetti() {
-  const count = 50;
+  const colors = ["#D32F2F", "#1565C0", "#2E7D32", "#F9A825", "#E91E63", "#9C27B0"];
+  const count = 80;
+  
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-[60]">
-      {Array.from({ length: count }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => {
+        const isLeft = i % 2 === 0;
+        const startX = isLeft ? -20 : 120;
+        const endX = isLeft ? 120 : -20;
+        
+        return (
+          <motion.div
+            key={i}
+            className="absolute"
+            initial={{
+              left: `${startX}%`,
+              top: -20,
+              rotate: 0,
+              scale: Math.random() * 0.5 + 0.5,
+            }}
+            animate={{
+              left: [`${startX}%`, `${endX}%`, `${startX}%`],
+              top: "120vh",
+              rotate: 720 * (Math.random() > 0.5 ? 1 : -1),
+            }}
+            transition={{
+              duration: Math.random() * 4 + 3,
+              repeat: Infinity,
+              delay: Math.random() * 3,
+              ease: "linear",
+            }}
+          >
+            <div 
+              className="w-3 h-3 rounded-sm"
+              style={{
+                backgroundColor: colors[Math.floor(Math.random() * colors.length)],
+                transform: `rotate(${Math.random() * 360}deg)`,
+                boxShadow: `0 0 10px ${colors[Math.floor(Math.random() * colors.length)]}40`,
+              }}
+            />
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VictorySparkles() {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {Array.from({ length: 20 }).map((_, i) => (
         <motion.div
           key={i}
-          className="absolute w-3 h-3 bg-red-500 rounded-sm"
+          className="absolute w-2 h-2 bg-yellow-400 rounded-full"
           initial={{
-            top: -20,
-            left: `${Math.random() * 100}vw`,
-            rotate: 0,
-            scale: Math.random() * 0.5 + 0.5,
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            scale: 0,
+            opacity: 0,
           }}
           animate={{
-            top: "110vh",
-            rotate: 360 * (Math.random() > 0.5 ? 1 : -1),
-            x: (Math.random() - 0.5) * 200,
+            scale: [0, 1, 0],
+            opacity: [0, 1, 0],
           }}
           transition={{
-            duration: Math.random() * 3 + 2,
+            duration: 1.5,
             repeat: Infinity,
-            delay: Math.random() * 5,
-            ease: "linear",
+            delay: Math.random() * 2,
+            ease: "easeInOut",
           }}
           style={{
-            backgroundColor: ["#D32F2F", "#1565C0", "#2E7D32", "#F9A825"][Math.floor(Math.random() * 4)],
+            boxShadow: "0 0 10px rgba(249, 168, 37, 0.8)",
           }}
         />
       ))}
@@ -49,98 +92,157 @@ function Confetti() {
 }
 
 export function WinScreen({ winner, players, onPlayAgain, onExit }: WinScreenProps) {
-  // Sort players by hand size (ascending) - wait, winner has 0 cards usually?
-  // Or just rank them.
   const rankedPlayers = [...players].sort((a, b) => a.hand.length - b.hand.length);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center"
+    >
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-2xl" />
       <Confetti />
       
       <motion.div 
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-lg p-6 flex flex-col items-center gap-8 relative z-[70]"
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20 }}
+        className="w-full max-w-lg p-6 sm:p-8 flex flex-col items-center gap-8 relative z-[70]"
       >
-        {/* Winner Announcement */}
-        <div className="flex flex-col items-center text-center">
+        <div className="flex flex-col items-center text-center relative">
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", bounce: 0.4, delay: 0.2 }}
+            className="relative mb-6"
+          >
+            <div 
+              className="w-28 h-28 sm:w-32 sm:h-32 rounded-full p-1.5"
+              style={{
+                background: "linear-gradient(135deg, #F9A825, #FFD54F, #F9A825)",
+                boxShadow: "0 0 60px rgba(249, 168, 37, 0.5), 0 0 120px rgba(249, 168, 37, 0.3)",
+              }}
+            >
+              <PlayerAvatar 
+                displayName={winner.displayName} 
+                size="lg" 
+                className="w-full h-full text-4xl border-4 border-white/90" 
+              />
+            </div>
+            <VictorySparkles />
+            
             <motion.div
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", bounce: 0.5 }}
-                className="mb-4"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.5, type: "spring" }}
+              className="absolute -top-2 -right-2 text-4xl"
             >
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-yellow-400 to-yellow-600 p-1 shadow-[0_0_50px_rgba(255,215,0,0.5)]">
-                    <PlayerAvatar displayName={winner.displayName} size="lg" className="w-full h-full text-4xl border-4 border-white" />
-                </div>
+              👑
             </motion.div>
-            
-            <motion.h1 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-5xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-100 to-yellow-500 drop-shadow-sm tracking-tight"
+          </motion.div>
+          
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
+            <h1 
+              className="text-5xl sm:text-6xl font-black italic tracking-tight"
+              style={{
+                background: "linear-gradient(135deg, #FFD54F, #F9A825, #FFD54F)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                textShadow: "0 4px 30px rgba(249, 168, 37, 0.4)",
+              }}
             >
-                WINNER!
-            </motion.h1>
-            
-            <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="text-white/60 text-lg font-medium mt-2"
-            >
-                {winner.displayName} takes the crown
-            </motion.p>
+              WINNER!
+            </h1>
+          </motion.div>
+          
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="text-white/60 text-lg font-medium mt-3"
+          >
+            {winner.displayName} wins the game!
+          </motion.p>
         </div>
 
-        {/* Scoreboard */}
         <motion.div 
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md"
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="w-full glass-strong rounded-2xl overflow-hidden border border-white/10"
         >
-            <div className="p-4 space-y-2">
-                {rankedPlayers.map((p, i) => (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-                        <div className="flex items-center gap-3">
-                            <span className="text-white/40 font-mono font-bold w-6">#{i + 1}</span>
-                            <PlayerAvatar displayName={p.displayName} size="sm" />
-                            <span className={p.id === winner.id ? "text-yellow-400 font-bold" : "text-white"}>
-                                {p.displayName}
-                            </span>
-                        </div>
-                        <div className="text-sm font-mono text-white/60">
-                            {p.hand.length === 0 ? "WON" : `${p.hand.length} cards left`}
-                        </div>
-                    </div>
-                ))}
-            </div>
+          <div className="p-1 bg-gradient-to-r from-[#D32F2F]/20 via-[#F9A825]/20 to-[#1565C0]/20" />
+          <div className="p-4 space-y-2">
+            {rankedPlayers.map((p, i) => (
+              <motion.div
+                key={p.id}
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.8 + i * 0.1 }}
+                className={`flex items-center justify-between p-3 rounded-xl transition-colors ${
+                  p.id === winner.id 
+                    ? "bg-[#F9A825]/10 border border-[#F9A825]/20" 
+                    : "bg-white/5 border border-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`font-mono font-bold w-6 text-center ${
+                    i === 0 ? "text-[#F9A825]" : "text-white/40"
+                  }`}>
+                    #{i + 1}
+                  </span>
+                  <PlayerAvatar displayName={p.displayName} size="sm" />
+                  <span className={p.id === winner.id ? "text-[#F9A825] font-bold" : "text-white"}>
+                    {p.displayName}
+                  </span>
+                </div>
+                <div className="text-sm font-mono text-white/60">
+                  {p.hand.length === 0 ? (
+                    <span className="text-[#F9A825] font-bold">WINNER</span>
+                  ) : (
+                    `${p.hand.length} cards left`
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </motion.div>
 
-        {/* Actions */}
         <motion.div 
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="flex flex-col sm:flex-row gap-4 w-full"
+          initial={{ y: 50, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="flex flex-col sm:flex-row gap-3 w-full"
         >
-            <button 
-                onClick={onPlayAgain}
-                className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold py-4 rounded-xl shadow-lg transform transition active:scale-95 flex items-center justify-center gap-2"
-            >
-                <span>🔄</span> Play Again
-            </button>
-            <button 
-                onClick={onExit}
-                className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-4 rounded-xl backdrop-blur-md transition active:scale-95 border border-white/10"
-            >
-                Main Menu
-            </button>
+          <motion.button 
+            onClick={onPlayAgain}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex-1 bg-gradient-to-r from-[#D32F2F] to-[#C62828] text-white font-bold py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 border border-white/10"
+            style={{
+              boxShadow: "0 8px 32px rgba(211, 47, 47, 0.3)",
+            }}
+          >
+            <span className="text-xl">🎮</span> 
+            <span>Play Again</span>
+          </motion.button>
+          <motion.button 
+            onClick={onExit}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex-1 glass-strong text-white font-bold py-4 px-6 rounded-xl border border-white/10 flex items-center justify-center gap-2 hover:border-white/20 transition-colors"
+          >
+            <span>🏠</span>
+            <span>Main Menu</span>
+          </motion.button>
         </motion.div>
 
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
